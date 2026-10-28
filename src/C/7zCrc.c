@@ -14,7 +14,8 @@
 #define Z7_CRC_HW_FORCE
 #endif
 
-#if defined(LIBPLZMA)
+// Apple arm64 keeps hardware CRC32: every Apple arm64 CPU has it, and CPU_IsSupported_CRC32 checks at run time.
+#if defined(LIBPLZMA) && !(defined(__APPLE__) && defined(MY_CPU_ARM64))
 #  if defined(Z7_CRC_HW_FORCE)
 #    undef Z7_CRC_HW_FORCE
 #  endif // Z7_CRC_HW_FORCE
@@ -186,7 +187,8 @@ Z7_DIAGNOSTIC_IGNORE_END_RESERVED_MACRO_IDENTIFIER
 #endif // non-ARM*
 
 
-#if defined(LIBPLZMA)
+// Apple arm64 keeps hardware CRC32: every Apple arm64 CPU has it, and CPU_IsSupported_CRC32 checks at run time.
+#if defined(LIBPLZMA) && !(defined(__APPLE__) && defined(MY_CPU_ARM64))
 #  if defined(Z7_CRC_HW_FORCE)
 #    undef Z7_CRC_HW_FORCE
 #  endif // Z7_CRC_HW_FORCE
