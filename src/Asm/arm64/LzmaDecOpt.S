@@ -14,6 +14,75 @@
 
 #include "7zAsm.S"
 
+// The assembler constants are preprocessor defines, not `.equ`: an `.equ` makes an absolute symbol, and
+// Apple's linker warns "could not associate debug note to atom" for each one. They sit above every macro
+// because the preprocessor only substitutes text after a #define, while `.equ` resolved at use.
+#define PMULT                    ((1 << PSHIFT))
+#define PMULT_2                  ((2 << PSHIFT))
+#define kMatchSpecLen_Error_Data ((1 << 9))
+#define kNumBitModelTotalBits    (11)
+#define kBitModelTotal           ((1 << kNumBitModelTotalBits))
+#define kNumMoveBits             (5)
+#define kBitModelOffset          ((kBitModelTotal - (1 << kNumMoveBits) + 1))
+#define kNumPosBitsMax           (4)
+#define kNumPosStatesMax         ((1 << kNumPosBitsMax))
+#define kLenNumLowBits           (3)
+#define kLenNumLowSymbols        ((1 << kLenNumLowBits))
+#define kLenNumHighBits          (8)
+#define kLenNumHighSymbols       ((1 << kLenNumHighBits))
+#define kNumLenProbs             ((2 * kLenNumLowSymbols * kNumPosStatesMax + kLenNumHighSymbols))
+#define LenLow                   (0)
+#define LenChoice                (LenLow)
+#define LenChoice2               ((LenLow + kLenNumLowSymbols))
+#define LenHigh                  ((LenLow + 2 * kLenNumLowSymbols * kNumPosStatesMax))
+#define kNumStates               (12)
+#define kNumStates2              (16)
+#define kNumLitStates            (7)
+#define kStartPosModelIndex      (4)
+#define kEndPosModelIndex        (14)
+#define kNumFullDistances        ((1 << (kEndPosModelIndex >> 1)))
+#define kNumPosSlotBits          (6)
+#define kNumLenToPosStates       (4)
+#define kNumAlignBits            (4)
+#define kAlignTableSize          ((1 << kNumAlignBits))
+#define kMatchMinLen             (2)
+#define kMatchSpecLenStart       ((kMatchMinLen + kLenNumLowSymbols * 2 + kLenNumHighSymbols))
+#define kStartOffset             (0)
+#define SpecPos                  ((-kStartOffset))
+#define IsRep0Long               ((SpecPos + kNumFullDistances))
+#define RepLenCoder              ((IsRep0Long + (kNumStates2 << kNumPosBitsMax)))
+#define LenCoder                 ((RepLenCoder + kNumLenProbs))
+#define IsMatch                  ((LenCoder + kNumLenProbs))
+#define kAlign                   ((IsMatch + (kNumStates2 << kNumPosBitsMax)))
+#define IsRep                    ((kAlign + kAlignTableSize))
+#define IsRepG0                  ((IsRep + kNumStates))
+#define IsRepG1                  ((IsRepG0 + kNumStates))
+#define IsRepG2                  ((IsRepG1 + kNumStates))
+#define PosSlot                  ((IsRepG2 + kNumStates))
+#define Literal                  ((PosSlot + (kNumLenToPosStates << kNumPosSlotBits)))
+#define NUM_BASE_PROBS           ((Literal + kStartOffset))
+#define offset_lc                (0)
+#define offset_lp                (1)
+#define offset_pb                (2)
+#define offset_dicSize           (4)
+#define offset_probs             (4 + offset_dicSize)
+#define offset_probs_1664        (8 + offset_probs)
+#define offset_dic               (8 + offset_probs_1664)
+#define offset_dicBufSize        (8 + offset_dic)
+#define offset_dicPos            (8 + offset_dicBufSize)
+#define offset_buf               (8 + offset_dicPos)
+#define offset_range             (8 + offset_buf)
+#define offset_code              (4 + offset_range)
+#define offset_processedPos      (4 + offset_code)
+#define offset_checkDicSize      (4 + offset_processedPos)
+#define offset_rep0              (4 + offset_checkDicSize)
+#define offset_rep1              (4 + offset_rep0)
+#define offset_rep2              (4 + offset_rep1)
+#define offset_rep3              (4 + offset_rep2)
+#define offset_state             (4 + offset_rep3)
+#define offset_remainLen         (4 + offset_state)
+#define offset_TOTAL_SIZE        (4 + offset_remainLen)
+
 	// .arch armv8-a
 	// .file        "LzmaDecOpt.c"
 	.text
@@ -38,7 +107,7 @@
 #define MY_ALIGN_FOR_LOOP_16 MY_ALIGN_16
 
 #ifdef _LZMA_PROB32
-        .equ PSHIFT , 2
+        #define PSHIFT  2
         .macro PLOAD dest:req, mem:req
                 ldr     \dest, [\mem]
         .endm
@@ -94,10 +163,7 @@
         .endm
 #endif
 
-.equ PMULT    , (1 << PSHIFT)
-.equ PMULT_2  , (2 << PSHIFT)
 
-.equ kMatchSpecLen_Error_Data , (1 << 9)
 
 #       x7      t0 : NORM_CALC    : prob2 (IF_BIT_1)
 #       x6      t1 : NORM_CALC    : probs_state
@@ -188,10 +254,6 @@
 #define lc2_lpMask      w30
 
 
-.equ kNumBitModelTotalBits   , 11
-.equ kBitModelTotal          , (1 << kNumBitModelTotalBits)
-.equ kNumMoveBits            , 5
-.equ kBitModelOffset         , (kBitModelTotal - (1 << kNumMoveBits) + 1)
 
 .macro NORM_2 macro
         ldrb    t0, [buf], 1
@@ -601,52 +663,15 @@
 
 
 
-.equ kNumPosBitsMax       , 4
-.equ kNumPosStatesMax     , (1 << kNumPosBitsMax)
                          
-.equ kLenNumLowBits       , 3
-.equ kLenNumLowSymbols    , (1 << kLenNumLowBits)
-.equ kLenNumHighBits      , 8
-.equ kLenNumHighSymbols   , (1 << kLenNumHighBits)
-.equ kNumLenProbs         , (2 * kLenNumLowSymbols * kNumPosStatesMax + kLenNumHighSymbols)
                          
-.equ LenLow               , 0
-.equ LenChoice            , LenLow
-.equ LenChoice2           , (LenLow + kLenNumLowSymbols)
-.equ LenHigh              , (LenLow + 2 * kLenNumLowSymbols * kNumPosStatesMax)
                          
-.equ kNumStates           , 12
-.equ kNumStates2          , 16
-.equ kNumLitStates        , 7
                          
-.equ kStartPosModelIndex  , 4
-.equ kEndPosModelIndex    , 14
-.equ kNumFullDistances    , (1 << (kEndPosModelIndex >> 1))
                          
-.equ kNumPosSlotBits      , 6
-.equ kNumLenToPosStates   , 4
                          
-.equ kNumAlignBits        , 4
-.equ kAlignTableSize      , (1 << kNumAlignBits)
                          
-.equ kMatchMinLen         , 2
-.equ kMatchSpecLenStart   , (kMatchMinLen + kLenNumLowSymbols * 2 + kLenNumHighSymbols)
 
 // .equ kStartOffset    , 1408
-.equ kStartOffset    , 0
-.equ SpecPos         , (-kStartOffset)
-.equ IsRep0Long      , (SpecPos + kNumFullDistances)
-.equ RepLenCoder     , (IsRep0Long + (kNumStates2 << kNumPosBitsMax))
-.equ LenCoder        , (RepLenCoder + kNumLenProbs)
-.equ IsMatch         , (LenCoder + kNumLenProbs)
-.equ kAlign          , (IsMatch + (kNumStates2 << kNumPosBitsMax))
-.equ IsRep           , (kAlign + kAlignTableSize)
-.equ IsRepG0         , (IsRep + kNumStates)
-.equ IsRepG1         , (IsRepG0 + kNumStates)
-.equ IsRepG2         , (IsRepG1 + kNumStates)
-.equ PosSlot         , (IsRepG2 + kNumStates)
-.equ Literal         , (PosSlot + (kNumLenToPosStates << kNumPosSlotBits))
-.equ NUM_BASE_PROBS  , (Literal + kStartOffset)
 
 .if kStartOffset != 0   // && IsMatch != 0
   .error "Stop_Compiling_Bad_StartOffset"
@@ -656,27 +681,6 @@
   .error "Stop_Compiling_Bad_LZMA_PROBS"
 .endif
 
-.equ offset_lc    , 0
-.equ offset_lp    , 1
-.equ offset_pb    , 2
-.equ offset_dicSize       , 4
-.equ offset_probs         , 4 + offset_dicSize
-.equ offset_probs_1664    , 8 + offset_probs
-.equ offset_dic           , 8 + offset_probs_1664
-.equ offset_dicBufSize    , 8 + offset_dic
-.equ offset_dicPos        , 8 + offset_dicBufSize
-.equ offset_buf           , 8 + offset_dicPos
-.equ offset_range         , 8 + offset_buf
-.equ offset_code          , 4 + offset_range
-.equ offset_processedPos  , 4 + offset_code
-.equ offset_checkDicSize  , 4 + offset_processedPos
-.equ offset_rep0          , 4 + offset_checkDicSize
-.equ offset_rep1          , 4 + offset_rep0
-.equ offset_rep2          , 4 + offset_rep1
-.equ offset_rep3          , 4 + offset_rep2
-.equ offset_state         , 4 + offset_rep3
-.equ offset_remainLen     , 4 + offset_state
-.equ offset_TOTAL_SIZE    , 4 + offset_remainLen
 
 .if offset_TOTAL_SIZE != 96
   .error "Incorrect offset_TOTAL_SIZE"
