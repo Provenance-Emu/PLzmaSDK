@@ -3,6 +3,11 @@
 
 #include "Precomp.h"
 
+// ARM64: decode with the hand-written LzmaDec_DecodeReal_3 in Asm/arm64/LzmaDecOpt.S.
+#if (defined(__arm64__) || defined(__aarch64__)) && !defined(Z7_LZMA_DEC_OPT)
+#define Z7_LZMA_DEC_OPT
+#endif
+
 #include <string.h>
 
 /* #include "CpuArch.h" */
